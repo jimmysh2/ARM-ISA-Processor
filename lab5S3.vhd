@@ -3,7 +3,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 entity datapath is 
 port (	
-		--clk : in std_logic;
+		clk : in std_logic;
 		PW,iord,MR,MW,IW,DW,Rsrc,M2R,RW,AW,BW,Asrc1,Fset,Rew, reset_rf : in std_logic ;
 		Asrc2 : in std_logic_vector(1 downto 0);
 		op : in std_logic_vector(3 downto 0)
@@ -48,7 +48,7 @@ entity Register_file is
 port( written_data : in std_logic_vector(31 downto 0);
 	  read_address_1,read_address_2:in std_logic_vector(3 downto 0);
 	  write_address: in std_logic_vector(3 downto 0);
-	  reset,write_enable: in std_logic;
+	  clk,reset,write_enable: in std_logic;
 	  out_data_1,out_data_2: out std_logic_vector(31 downto 0);
 	  PC_output:out std_logic_vector(31 downto 0)); 
 end entity;
@@ -62,7 +62,7 @@ entity memory is
 port( 
 	  address : in std_logic_vector(17 downto 0);
 	  write_data : in std_logic_vector(31 downto 0);
-	  write_enable,read_enable: in std_logic;
+	  clk,write_enable,read_enable: in std_logic;
 	  read_data : out std_logic_vector(31 downto 0)); 
 end entity;
 -----
@@ -147,7 +147,6 @@ end architecture;
 ------------ REGISTER-FILE   
 architecture behav of Register_file is 
 
-	--signal register_array: std_logic_vector (511 downto 0);  -- (32*16 - 1 to 0 ) think like int array in c..(here instead of int a 32 bit datatype )
 	signal program_counter : std_logic_vector (31 downto 0);
 	signal reg_array: array (0 to 15) of std_logic_vector(31 downto 0);
 	begin 
@@ -155,33 +154,33 @@ architecture behav of Register_file is
 		PC_output <= program_counter;
 		out_data_1 <=  reg_array(to_integer(unsigned(read_address_1)));
 		out_data_2 <=  reg_array(to_integer(unsigned(read_address_2)));
-		--process(clock)
-			--if(clock = '1' and clock'event ) then
-				--if ( write_enable = '1' ) then 
-				reg_array(to_integer(unsigned(write_address))) <= written_data when write_enable = '1'; --(I'm relying on your to_integer fn)
-				--end if ;
+		process(clk)
+			if(clk = '1' and clk'event ) then
+				if ( write_enable = '1' ) then 
+					reg_array(to_integer(unsigned(write_address))) <= written_data ; --(I'm relying on your to_integer fn)
+				end if ;
 
-				--if (reset = '1' )then 
-					reg_array <= 0 when reset = '1';
-				--end if ;
-			--end if ;
-		--end process;
+				if (reset = '1' )then 
+					reg_array <= 0 ;
+				end if ;
+			end if ;
+		end process;
 end architecture;
 -----------------
 ------------ MEMORY
 architecture behav of memory is
 	signal memory : array (0 to 2^32-1) of std_logic_vector(31 downto 0);
 	begin
-		--process(clock)
-			--if(clock = '1' and clock'event) then
-				--if ( write_enable = '1' ) then 
-					memory(to_integer(unsigned(address))) <= write_data when write_enable = '1'; --(I'm relying on your to_integer fn)
+		process(clk)
+			if(clk = '1' and clk'event) then
+				if ( write_enable = '1' ) then 
+					memory(to_integer(unsigned(address))) <= write_data; --(I'm relying on your to_integer fn)
 
-				--elsif (read_enable = '1') then 
-					read_data <= memory(to_integer(unsigned(address))) when read_enable = '1';
-				--end if ;
-			--end if ;
-		--end process;
+				elsif (read_enable = '1') then 
+					read_data <= memory(to_integer(unsigned(address)));
+				end if ;
+			end if ;
+		end process;
 end architecture;
 -----------
 ------------ PROCESSOR MEMORY PATH
@@ -242,7 +241,7 @@ component Register_file
 port( written_data : in std_logic_vector(31 downto 0);
 	  read_address_1,read_address_2:in std_logic_vector(3 downto 0);
 	  write_address: in std_logic_vector(3 downto 0);
-	  reset,write_enable: in std_logic;
+	  clk,reset,write_enable: in std_logic;
 	  out_data_1,out_data_2: out std_logic_vector(31 downto 0);
 	  PC_output:out std_logic_vector(31 downto 0));
 end component;
@@ -250,7 +249,7 @@ end component;
 component memory
 port( address:in std_logic_vector(3 downto 0);
 	  write_data : in std_logic_vector(31 downto 0);
-	  write_enable,read_enable: in std_logic;
+	  clk,write_enable,read_enable: in std_logic;
 	  read_data : out std_logic_vector(31 downto 0));
 end component;
 
@@ -290,7 +289,8 @@ begin
 		write_address => ins(15 downto 12),
 		written_data => WD,
 		out_data_1 => RD1,
-		out_data_2 => RD2,		
+		out_data_2 => RD2,
+		clk => clk,
 		reset => reset_rf,
 		write_enable =>  RW , 
 		PC_output => waste_pc
@@ -301,6 +301,7 @@ begin
 		address => memory_ad,
 		write_data => memory_wd,
 		read_data=> memory_rd,
+		clk => clk,
 		write_enable =>  MW,
 		read_enable => MR
 	);
