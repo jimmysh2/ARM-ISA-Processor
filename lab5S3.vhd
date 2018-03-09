@@ -30,7 +30,7 @@ entity shifter is
 		opcode: in std_logic_vector(1 downto 0);
 		amount:in std_logic_vector(4 downto 0)
 		ans:out std_logic_vector(31 downto 0);
-		carry: out std_logic;);
+		carry: out std_logic);
 end entity;
 ---------
 ------ MULTIPLIER

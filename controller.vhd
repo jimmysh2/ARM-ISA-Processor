@@ -73,7 +73,7 @@ architecture behav of main is
 					---similarly do below for all the states
 					
 				end case;
-					
+			end if;		
 		end process;
 end architecture;
 ----------
