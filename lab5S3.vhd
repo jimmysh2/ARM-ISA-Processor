@@ -343,3 +343,4 @@ begin
 	n_original <= n when Fset = '1' ;
 
 end architecture;
+-------------------------------
