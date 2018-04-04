@@ -52,23 +52,90 @@ architecture behav of main is
 					-- fetch
 					when "0000" =>
 						--signal values
-						PW=>'1';IW=>'1';MR=>1;iord=>0;Asrc1=>0;Asrc2=>1;op=>"opcode for add";
+						PW<='1';IW<='1';MR<=1;iord<=0;Asrc1<=0;Asrc2<=1;op<="opcode for add";
 						
 						--transitions
-						state=>"0001" --rdAB
+						state<="0001" --rdAB
 					-------
 					-- rdAB
 					when "0001" =>
 						--signal values
-
+							PW <= '1' ; IW <='1';MR<='1';iord<='0';Asrc1<='0';Asrc2<='1';op<="0100";
+							
 						--transitions
 						if(ins(27 downto 26)="00") then
-							state=>"0010"; --arith
+							state<="0010"; --arith
 						elsif(ins(27 downto 26)="01") then
-							state=>"0100"; --addr
+							state<="0100"; --addr
 						elsif(ins(27 downto 26)="10")
-							state=>"1000"; --brn
+							state<="1000"; --brn
 						end if;
+						---arith
+					when "0010" => 
+							---signal values 
+								resW<='1';Fset<=p;Asrc1 <= '1' ; Asrc2='0';op<=ins(24 downto 21);
+							---transitions
+								if(ins(27 downto 26) = "00") then
+									state<= "0011"; --wrRF
+								end if;
+								
+						---wrRF
+					when "0011" =>
+							---signal values
+								M2R<='0';RW<=p;
+							
+							---transitions 
+							if(ins(27 downto 26) = "00") then
+								state <= "0000";
+							end if;
+						---addr
+					when  "0100" =>
+							---signal values
+								resW<='1';Asrc1<='1';Asrc2<="10";
+								if(ins(23)='1') then 
+									op<="0100";
+								else
+									op<="0010";
+								end if;
+							---transitions
+							if(ins(27 downto 26) = "01" and ins(20) = '0' ) then
+								state <= "0101" ; ---wrM
+							elsif (ins(27 downto 26) = "01" and ins(20) = '1' ) then
+								state<= "0111"; ----rdM
+							end if;
+						----wrM
+					when "0101" =>
+							----signal values
+								iord<='1';MW<=p;
+							
+							----transitions
+								if(ins(27 downto 26) = "01" and ins(20) = '0' ) then
+									state<="0000";
+								end if;
+						----rdM
+					when "0110" => 
+							-----signal 
+								DW<='1';MR<='1';iord<='1';
+							-----transitions
+								if(ins(27 downto 26) = "01" and ins(20) = '1' ) then
+									state<="0111";
+								end if;
+						---M2RF	
+					when "0111" =>
+						---signal 
+						M2R<='1';RW<=p;				
+						----transitions
+							if(ins(27 downto 26) = "01" and ins(20) = '1' ) then
+								state<="0000";
+							end if;
+						----brn
+					when "1000" => 
+						---signal
+							PW<=p;Asrc1<='0';Asrc2<="11";op<="0100";
+						---transitions
+							if(ins(27 downto 26) = "10") then
+								state<="0000";
+							end if;
 					-------
 					---similarly do below for all the states
 					
@@ -79,11 +146,24 @@ end architecture;
 ----------
 architecture behav of Bctrl is
 	begin
-		with ins select p =>
+		with ins select p <=
 					z when "0000",
 					not z when "0001",
 					c when "0010",
 					not c when "0011",
+					n when "0100",
+					not n when "0101",
+					v when "0110",
+					not v when "0111",
+					c and not z when "1000",
+					not ( c and not z ) when "1001",
+					n xor v when "1010",
+					not(n xor v)  when "1011",
+					(n xor v) and not z when "1100",
+					not ((n xor v) and not z ) when "1101",
+					'1' when others;
+					
+				
 					-- and so on from slide 11-12 of lec 12
 		
 end architecture;

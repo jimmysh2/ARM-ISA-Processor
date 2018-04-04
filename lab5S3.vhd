@@ -263,10 +263,24 @@ port ( from_processor : in std_logic_vector(31 downto 0);
 	   write_enable : out std_logic_vector(3 downto 0));
 end component;
 
-signal ins3_downto_0 : std_logic_vector(3 downto 0);
-signal DR,RES,WD,RD1,RD2,alu_op1,alu_op2,alu_ans,A,B,EX,S2,PC: std_logic_vector(31 downto 0);
+component shifter
+port(	a:in std_logic_vector(31 downto 0);
+		opcode: in std_logic_vector(1 downto 0);
+		amount:in std_logic_vector(4 downto 0)
+		ans:out std_logic_vector(31 downto 0);
+		carry: out std_logic);
+end component;
+
+component multiplier
+port ( a,b:in std_logic_vector(31 downto 0);
+		c:out std_logic_vector(31 downto 0));
+end component;
+
+signal register_read_2 : std_logic_vector(3 downto 0);
+signal DR,RES,WD,RD1,RD2,alu_op1,alu_op2,alu_ans,A,B,D,X,EX,S2,PC, mul_input1,mul_input2,mul_output: std_logic_vector(31 downto 0);
 signal c_original,c_new,n,z,v,n_original,v_original,z_original : std_logic;
 signal memory_ad,memory_wd,memory_rd, waste_pc : std_logic_vector(31 downto 0);
+signal shift_amount : std_logic_vector(4 downto 0);
 begin
 	u1: alu
 	port map 
@@ -285,8 +299,8 @@ begin
 	port map 
 	(	
 		read_address_1 => ins(19 downto 16),
-		read_address_2 => ins3_downto_0,
-		write_address => ins(15 downto 12),
+		read_address_2 => register_read_2,
+		write_address => register_write,
 		written_data => WD,
 		out_data_1 => RD1,
 		out_data_2 => RD2,
@@ -314,33 +328,83 @@ begin
 				to_processor => for_to_processor,
 				to_memory => for_to_memory,
 				write_enable => for_write_enable
-				
 				);
+	u5: shifter
+	port map (
+			a => shift_input,
+			opcode => ins(6 downto 5),
+			amount => shift_amount,
+			ans => D
+			--carry: out std_logic
+			);
+	u6: multiplier		
+	port map( 
+			a => mul_input1,
+			b => mul_input2,
+			c => mul_output
+			);
+				
 	PC <= alu_ans when PW = '1';
-	memory_ad <=  pc  when iord = '0' else
-				  RES ;
-	memory_wd <= RD2;
+	-----memory signals
+	memory_ad <=  pc  when iord = "00" else
+				  RES when iord = "01" else
+				  A ; -- this is for post increment
+	memory_wd <= B;
 	ins <= memory_rd when IW = '1' ;
 	DR <= memory_rd when DW = '1';
+	---
+	
+	---- alu operands
+	alu_op1 <= pc when Asrc1 = '0' else
+				A;
+	
+	alu_op2 <= B when Asrc2 = "000" else
+			   "0000000000000000000000000000000100" when Asrc2 = "001" else
+			  EX when Asrc2 = "010" else
+			  S2 when Asrc2 = "011" else
+			  D when Asrc2 = "100" ;
+	------------
+	EX <= "00000000000000000000" & ins(11 downto 0);
+	S2 <= "000000" & ins(23 downto 0) & "00" when ins(23)="0" else
+		  "111111" & ins(23 downto 0) & "00";'
+	-------
+	RES <= alu_ans when ReW = "01" else
+		   mul_output when ReW = "10";
+	S2 <= "00000000" & ins(23 downto 0);
+	EX <= "0000000000000000000000" & ins(11 downto 0);
+	
+	--- register signals
 	WD <= DR when M2R = '1' else
 			RES;
 	A <= RD1 when AW = '1' ;
 	B <= RD2 when BW ='1' ;
-	alu_op1 <= pc when Asrc1 = '0' else
-				A;
-	alu_op2 <= B when Asrc2 = "00" else
-			   "0000000000000000000000000000000100" when Asrc2 = "01" else
-			  EX when Asrc2 = "10" else
-			  S2;
-	RES <= alu_ans when ReW = '1' ;
-	S2 <= "00000000" & ins(23 downto 0);
-	EX <= "0000000000000000000000" & ins(11 downto 0);
-	ins3_downto_0 <= ins(3 downto 0) when Rsrc = '0' else
-					ins(15 downto 12 );
+	X <= RD2 when XW ='1' ;
+	
+	register_read_2 <= ins(3 downto 0) when Rsrc = "00" else
+					   ins(15 downto 12) when Rsrc = "01" else
+					   ins(11 downto 8) when Rsrc = "10";
+	register_write <= ins(15 downto 12) when RWA = '0' else
+					  ins(19 downto 16);
+	-- flags
 	c_original <= c_new when Fset = '1' ;
 	v_original <= v when Fset = '1' ;
 	z_original <= z when Fset = '1' ;
 	n_original <= n when Fset = '1' ;
+	
+	---- shifter signals
+	shift_amount<= 
+				   '0' & ins (11 downto 8) when Ssrc1 = "00" else
+				   ins(11 downto 7) when Ssrc1 = "01" else
+				   X(4 downto 0) when Ssrc1 = "10" ; ---because we support only shift upto 31
+	
+	shift_input <= 	
+				"000000000000000000000000" & ins(7 downto 0) when Ssrc1 = "00" else
+				B when Ssrc1 = "01" or Ssrc1 = "10" ;
+	
+	--- multiplier signals
+	mul_input1 <= A;
+	mul_input2 <= D;
+				
 
 end architecture;
 -------------------------------
