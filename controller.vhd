@@ -28,6 +28,16 @@ port (
 		clk,c,v,n,z : in std_logic; ins : in std_logic_vector(3 downto 0);
 		p : out std_logic );
 end entity;
+
+-- IR
+library ieee;
+use ieee.std_logic_1164.all;
+entity Ins_decoder is 
+port ( 
+		ins: in std_logic_vector(32 downto 0);
+		class:out std_logic_vector(1 downto 0);
+		sub_class:out std_logic_vector(4 downto 0));
+end entity;
 ----
 ---- 'Actrl' is not needed as it is embedded in main controller
 --library ieee;
@@ -44,6 +54,7 @@ end entity;
 architecture behav of main is
 	signal state : std_logic_vector(3 downto 0);
 	begin
+	=
 		process(clk)
 			if(clk='1' and clock'event) then
 				---here come the states (from slide 30-33 of lec 12)
@@ -167,3 +178,15 @@ architecture behav of Bctrl is
 					-- and so on from slide 11-12 of lec 12
 		
 end architecture;
+----architecture
+architecture behav of Ins_decoder is 
+signal class_1 :std_logic; 
+
+begin
+class_1<="00" when ( ins(27 downto 26) = "00" and  (ins(25) or (ins(25)= '0' and (ins(4)='0' or (ins(7)='0' and ins(4)='1'))))) else
+		"01" when ( ins(27 downto 23) = "00000" and ins(7 downto 4)="1001") else 
+		"10" when (ins(27 downto 26) = "01" or (ins(27 downto 26)="00" and ins(11 downto 7)="00001" and ins(4)='1' and not(ins(6 downto 5)="00"))) else
+		"11" when ins(27 downto 26) = "10";
+sub_class<= 	
+end architecture; of instruction decoder
+
