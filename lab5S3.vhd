@@ -1,4 +1,4 @@
------ DATAPATH
+----- DATAPATH-----
 library ieee;
 use ieee.std_logic_1164.all;
 entity datapath is 
@@ -404,7 +404,7 @@ begin
 	--- multiplier signals
 	mul_input1 <= A;
 	mul_input2 <= D;
-				
+				                     l
 
 end architecture;
 -------------------------------

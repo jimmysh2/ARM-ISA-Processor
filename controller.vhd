@@ -55,15 +55,53 @@ architecture behav of main is
 	signal state : std_logic_vector(3 downto 0);
 	begin
 		--- concurrent part
+		--0000	fetch
+		--0001	rdAB_FOR_DP
+		--0010	rdX for dp
+		--0011  Shift/rotate operand2
+		--0100	Perform DP operation. Set flags if required.
+		--0101	Write result into register Rd of register file,
+		
 		with state select PW <=
-								'1' when "0000",
-								'' when "";
-		with state select PW <=
-								'1' when "0000",
-		with state select PW <=
-								'1' when "0000",
-		with state select PW <=
-								'1' when "0000",
+								'1' when "0000", -- fetch
+								;
+								 
+		with state select IW <=
+								'1' when "",
+		with state select DW <=
+								'1' when "",
+		with state select Asrc1 <=
+								'1' when "0100";
+								
+		
+		with state select Asrc2 <=
+								"100" when "0100";
+		with state select iord <=
+								'1' when "",
+		with state select Rew <=
+								'1' when "",
+		with state select M2R <=
+								'1' when "",
+		with state select AW <=
+								'1' when "0001",
+		with state select BW <=
+								'1' when "0001",
+		with state select XW <=
+		
+						'1' when "0010",
+		RWA  <=
+					'0' when state= "0101" and not(sub_class="10");
+		Rsrc <=
+					'10' when state="0010" ;
+		
+		Fset <=
+								'1' when state = "0100" and ins(20)='1' and p ='1';
+		Ssrc1 <=
+								"00" when state="0011" and variant = "00" else
+								"01" when state="0011" and variant = "01" else
+								"10" when state="0011" and variant = "10";
+								
+		
 								
 		
 		---- sequential part
@@ -83,7 +121,7 @@ architecture behav of main is
 					-- rdAB
 					when "0001" =>
 						--signal values
-							PW <= '1' ; IW <='1';MR<='1';iord<='0';Asrc1<='0';Asrc2<='1';op<="0100";
+							PW <= '1'; IW <='1';MR<='1';iord<='0';Asrc1<='0';Asrc2<='1';op<="0100";
 							
 						--transitions
 						if(ins(27 downto 26)="00") then
