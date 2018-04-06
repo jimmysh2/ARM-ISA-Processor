@@ -54,7 +54,7 @@ end entity;
 architecture behav of main is
 	signal state : std_logic_vector(3 downto 0);
 	begin
-	=
+		
 		process(clk)
 			if(clk='1' and clock'event) then
 				---here come the states (from slide 30-33 of lec 12)
