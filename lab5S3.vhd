@@ -4,8 +4,9 @@ use ieee.std_logic_1164.all;
 entity datapath is 
 port (	
 		clk : in std_logic;
-		PW,iord,MR,MW,IW,DW,Rsrc,M2R,RW,AW,BW,Asrc1,Fset,Rew, reset_rf : in std_logic ;
-		Asrc2 : in std_logic_vector(1 downto 0);
+		PW,iord,MR,MW,IW,DW,Rsrc,M2R,RW,AW,BW,XW,Asrc1,Fset,Rew, reset_rf : in std_logic ;
+		Ssrc1 : in std_logic_vector(1 downto 0);
+		Asrc2 : in std_logic_vector(2 downto 0);
 		op : in std_logic_vector(3 downto 0)
 		);
 end entity;

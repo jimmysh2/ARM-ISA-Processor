@@ -54,6 +54,7 @@ end entity;
 architecture behav of main is
 	signal state : std_logic_vector(3 downto 0);
 	begin
+
 		--- concurrent part
 		--0000	fetch
 		--0001	rdAB_FOR_DP
