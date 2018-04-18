@@ -4,7 +4,7 @@ use ieee.std_logic_1164.all;
 entity datapath is 
 port (	
 		clk : in std_logic;
-		PW,iord,MR,MW,IW,DW,Rsrc,M2R,RW,AW,BW,XW,Asrc1,Fset,Rew, reset_rf : in std_logic ;
+		PW,iord,MR,MW,IW,DW,Rsrc,M2R,RW,AW,BW,XW,Asrc1,Fset,Rew, reset_rf, MOW : in std_logic ;
 		Ssrc1 : in std_logic_vector(1 downto 0);
 		Asrc2 : in std_logic_vector(2 downto 0);
 		op : in std_logic_vector(3 downto 0)
@@ -277,7 +277,7 @@ port ( a,b:in std_logic_vector(31 downto 0);
 		c:out std_logic_vector(31 downto 0));
 end component;
 
-signal register_read_2 : std_logic_vector(3 downto 0);
+signal register_read_2,register_read_1 : std_logic_vector(3 downto 0);
 signal DR,RES,WD,RD1,RD2,alu_op1,alu_op2,alu_ans,A,B,D,X,EX,S2,PC, mul_input1,mul_input2,mul_output: std_logic_vector(31 downto 0);
 signal c_original,c_new,n,z,v,n_original,v_original,z_original : std_logic;
 signal memory_ad,memory_wd,memory_rd, waste_pc : std_logic_vector(31 downto 0);
@@ -299,7 +299,7 @@ begin
 	u2 : Register_file 
 	port map 
 	(	
-		read_address_1 => ins(19 downto 16),
+		read_address_1 => register_read_1,
 		read_address_2 => register_read_2,
 		write_address => register_write,
 		written_data => WD,
@@ -342,7 +342,7 @@ begin
 	port map( 
 			a => mul_input1,
 			b => mul_input2,
-			c => mul_output
+			c => mul_out
 			);
 				
 	PC <= alu_ans when PW = '1';
@@ -356,8 +356,9 @@ begin
 	---
 	
 	---- alu operands
-	alu_op1 <= pc when Asrc1 = '0' else
-				A;
+	alu_op1 <= pc when Asrc1 = "00" else
+			   A when Asrc1 = "01" else
+			   mul_output when Asrc1 = "10";
 	
 	alu_op2 <= B when Asrc2 = "000" else
 			   "0000000000000000000000000000000100" when Asrc2 = "001" else
@@ -369,23 +370,29 @@ begin
 	S2 <= "000000" & ins(23 downto 0) & "00" when ins(23)="0" else
 		  "111111" & ins(23 downto 0) & "00";'
 	-------
-	RES <= alu_ans when ReW = "01" else
+	RES <= alu_ans when ReW = "01" ;
 		   mul_output when ReW = "10";
 	S2 <= "00000000" & ins(23 downto 0);
 	EX <= "0000000000000000000000" & ins(11 downto 0);
 	
 	--- register signals
-	WD <= DR when M2R = '1' else
-			RES;
+	WD <= DR when M2R = "01" else
+		  RES when M2R = "00" else
+		  PC when M2R = "10";
+		  
 	A <= RD1 when AW = '1' ;
 	B <= RD2 when BW ='1' ;
 	X <= RD2 when XW ='1' ;
 	
+	register_read_1 <= ins(19 downto 16) when Rsrc1 = '0' else
+					   ins(11 downto 08) when Rsrc1 = '1';
+	
 	register_read_2 <= ins(3 downto 0) when Rsrc = "00" else
 					   ins(15 downto 12) when Rsrc = "01" else
 					   ins(11 downto 8) when Rsrc = "10";
-	register_write <= ins(15 downto 12) when RWA = '0' else
-					  ins(19 downto 16);
+	register_write <= ins(15 downto 12) when RWA = "00" else
+					  ins(19 downto 16) when RWA = "01" else
+					  "1110"; when RWA = "10"; -- for bl instruction
 	-- flags
 	c_original <= c_new when Fset = '1' ;
 	v_original <= v when Fset = '1' ;
@@ -404,8 +411,8 @@ begin
 	
 	--- multiplier signals
 	mul_input1 <= A;
-	mul_input2 <= D;
-				                     l
+	mul_input2 <= B;
+	mul_output <= mul_out when MOW='1';		                     l
 
 end architecture;
 -------------------------------
