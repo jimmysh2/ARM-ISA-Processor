@@ -14,9 +14,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 entity main is 
 port (	
-		clk,p : in std_logic; ins : in std_logic_vector(31 downto 0); 
-		PW,iord,MR,MW,IW,DW,Rsrc,M2R,RW,AW,BW,Asrc1,Fset,Rew, reset_rf, MOW : out std_logic ;
-		Asrc2 : out std_logic_vector(1 downto 0);
+		clk,p,sub_class,pre_increment,write_back,cort : in std_logic; ins : in std_logic_vector(31 downto 0); 
+		variant,class : in std_logic_vector(1 downto 0);
+		PW,MR,MW,IW,DW,Rsrc1,RW,AW,BW,XW,Fset, reset_rf, MOW : out std_logic ;
+		Asrc1,Asrc2,iord,ReW,M2R,RWA,Rsrc,Ssrc1 : out std_logic_vector(1 downto 0);
 		op : out std_logic_vector(3 downto 0));
 end entity;
 ----
@@ -35,8 +36,8 @@ use ieee.std_logic_1164.all;
 entity Ins_decoder is 
 port ( 
 		ins: in std_logic_vector(32 downto 0);
-		class:out std_logic_vector(1 downto 0);
-		sub_class:out std_logic_vector(4 downto 0));
+		class,variant:out std_logic_vector(1 downto 0);
+		sub_class,pre_increment,write_back,cort:out std_logic);
 end entity;
 ----
 ---- 'Actrl' is not needed as it is embedded in main controller
@@ -85,9 +86,9 @@ architecture behav of main is
 								'1' when "01101";
 								 
 		with state select IW <=
-								'1' when "",
-		with state select DW <=
-								'1' when state="01001" and sub_class='1',
+								'1' when "00000";
+		DW <=
+								'1' when state="01001" and sub_class='1';
 		 Asrc1 <=
 								"01" when state = "00100" else
 								"01" when state = "01000" else
@@ -107,11 +108,11 @@ architecture behav of main is
 								"011" when state = "01101" else
 								"000" when state = "10000";
 								
-		with state select iord <=
+		iord <=
+		                        "00" when state="00000" else
 								"01" when state="01001" and pre_increment='1' else
-								"10" when state="01001" and pre_increment='0' else
-								;
-		with state select Rew <=
+								"10" when state="01001" and pre_increment='0' ;
+		with state select ReW <=
 								"01" when "10000",
 								"10" when "1111";
 		M2R <=
@@ -133,10 +134,9 @@ architecture behav of main is
 								'1' when state = "01111" and ins(21)='1';
 		 XW <=
 		
-						'1' when state = "00010" else
-						;
+						'1' when state = "00010" ;
 		RWA  <=
-					"00" when state= "00101" and not(sub_class="10") else
+					"00" when state= "00101" and cort='0' else
 					"01" when state="01001" and write_back='1' else
 					"00" when state="01010" and sub_class='1' else
 					"10" when state="01011" else
@@ -152,20 +152,21 @@ architecture behav of main is
 					"00" when state="01111" and ins(21)='1';
 					
 		Fset <=
-								'1' when state = "00100" and ins(20)='1' and p ='1';
+								'1' when state = "00100" and ins(20)='1' and p ='1' else
+								'0';
 		Ssrc1 <=
 								"00" when state="00011" and variant = "00" else
 								"01" when state="00011" and variant = "01" else
 								"10" when state="00011" and variant = "10" else
 								"01" when state ="00111" and variant = "01" else       ---imm_reg
-								"00" when state ="00111" and variant = "00"            ---imm_imm
-								;
-		ReW <= 		"01" when state="01000" or state="00100" else
-					;
+								"00" when state ="00111" and variant = "00" ;           ---imm_imm
+								
+		ReW <= 		"01" when state="01000" or state="00100" ;
 		MR <= 	'1' when state="01001" and sub_class='1' else
-				;
-		MW <= 	'1' when state="01001" and sub_class='0' else
-				;
+				'1' when state="00000";
+				
+		MW <= 	'1' when state="01001" and sub_class='0';
+		
 		RW <=	'1' when state="01001" and write_back='1' else
 				'1' when state="01010" and sub_class='1' else
 				'1' when state="01011" else
@@ -183,22 +184,23 @@ architecture behav of main is
 			   '0';
 		---- sequential part
 		process(clk)
-			if(clk='1' and clock'event) then
+		begin
+			if(clk='1' and clk'event) then
 				---here come the states (from slide 30-33 of lec 12)
 				case state is
 
 					-- fetch
 					when "0000" =>
 						--transitions
-						if(class = "DP")
-							state <= "00001" --rdAB
-						elsif(class = "DT")
-							state <= "00110" --rdAB
-						elsif(class = "Branch" and sub_class="branch_link")
+						if(class = "00") then
+							state <= "00001"; --rdAB
+						elsif(class = "01") then
+							state <= "00110"; --rdAB
+						elsif(class = "11" and ins(24)='1') then --for branch link
 							state <= "01011";
-						elsif(class = "Branch")
+						elsif(class = "11") then
 							state <= "01101";
-						elsif(class = "mul")
+						elsif(class = "10") then
 							state <= "01110";
 						end if;
 					-------
@@ -209,7 +211,7 @@ architecture behav of main is
 							state<="0010"; --arith
 						elsif(ins(27 downto 26)="01") then
 							state<="0100"; --addr
-						elsif(ins(27 downto 26)="10")
+						elsif(ins(27 downto 26)="10") then
 							state<="1000"; --brn
 						end if;
 						---arith
@@ -291,9 +293,10 @@ end architecture;
 ----architecture
 architecture behav of Ins_decoder is 
 signal class1 : std_logic_vector(1 downto 0); 
+signal complete_sub_class : std_logic_vector(2 downto 0); 
 
 begin
-class1<="00" when ( ins(27 downto 26) = "00" and  (ins(25) or (ins(25)= '0' and (ins(4)='0' or (ins(7)='0' and ins(4)='1'))))) else
+class1<="00" when  ins(27 downto 26) = "00" and  (ins(25)='1' or (ins(25)= '0' and (ins(4)='0' or (ins(7)='0' and ins(4)='1')))) else
 		"01" when ( ins(27 downto 23) = "00000" and ins(7 downto 4)="1001") else 
 		"10" when (ins(27 downto 26) = "01" or (ins(27 downto 26)="00" and ins(11 downto 7)="00001" and ins(4)='1' and not(ins(6 downto 5)="00"))) else
 		"11" when ins(27 downto 26) = "10";
@@ -301,6 +304,8 @@ class <= class1;
 
 --load store branch_link
 --write_back pre_increment
+pre_increment <= ins(24);
+write_back <= ins(21);
 
 sub_class <= ins(20);
 
@@ -309,12 +314,15 @@ complete_sub_class <=   "000" when ins(27 downto 26)="01" and ins(20)='1' and in
 						"100" when ins(27 downto 26)="01" and ins(20)='1' and ins(22)='1' else
 						"101" when ins(27 downto 26)="01" and ins(20)='0' and ins(22)='1' else
 						"010" when ins(27 downto 26)="00" and ins(20)='1' and class1="01" else
-						"011" when ins(27 downto 26)="00" and ins(20)='0' and class1="01" else
+						"011" when ins(27 downto 26)="00" and ins(20)='0' and class1="01";
 
 variant <=  "00" when ins(27 downto 26) = "00" and (ins(25)='1' or (class1="01" and ins(22)='1')) else
 			"00" when ins(27 downto 25) = "010" else
 			"01" when ins(27 downto 25) = "000" and ins(4)='0' else
 			"01" when ins(27 downto 25) = "011" else
 			"10" when ins(27 downto 25) = "000" and ins(4)='1' and ins(7)='0';
+			
+cort <= '1' when ins(24 downto 21) >="1000" and ins(24 downto 21) <="1011" else
+        '0';
 						
 end architecture;
