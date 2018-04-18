@@ -4,8 +4,8 @@ use ieee.std_logic_1164.all;
 entity datapath is 
 port (	
 		clk : in std_logic;
-		PW,iord,MR,MW,IW,DW,Rsrc,M2R,RW,AW,BW,XW,Asrc1,Fset,Rew, reset_rf, MOW : in std_logic ;
-		Ssrc1 : in std_logic_vector(1 downto 0);
+		PW,MR,MW,IW,DW,Rsrc1,RW,AW,BW,XW,Fset, reset_rf, MOW : in std_logic ;
+		Ssrc1,iord,Asrc1,ReW,M2R,Rsrc,RWA : in std_logic_vector(1 downto 0);
 		Asrc2 : in std_logic_vector(2 downto 0);
 		op : in std_logic_vector(3 downto 0)
 		);
@@ -16,6 +16,9 @@ end entity;
 ---- ALU 
 library ieee;
 use ieee.std_logic_1164.all;
+--use ieee.numeric_std.all;
+--use ieee.std_logic_arith.all;
+use ieee.std_logic_unsigned.all;
 entity alu is
 	port(a,b:in std_logic_vector(31 downto 0);
 		opcode: in std_logic_vector(3 downto 0);
@@ -26,15 +29,20 @@ end entity;
 ------ SHIFTER
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
+use ieee.numeric_std.all; -- for to_integer
 entity shifter is
 	port(a:in std_logic_vector(31 downto 0);
 		opcode: in std_logic_vector(1 downto 0);
-		amount:in std_logic_vector(4 downto 0)
+		amount:in std_logic_vector(4 downto 0);
 		ans:out std_logic_vector(31 downto 0);
 		carry: out std_logic);
 end entity;
 ---------
 ------ MULTIPLIER
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
 entity multiplier is 
 port ( a,b:in std_logic_vector(31 downto 0);
 		c:out std_logic_vector(31 downto 0));
@@ -106,7 +114,7 @@ architecture behav of alu is
 		ans<= s;
 		-- FLAGS
 		c31 <= a(31) xor b(31) xor s(31);
-		c32 <= (a(31) and b(31)) or (a(31) and c(31)) or (b(31) and c(31));
+		c32 <= (a(31) and b(31)) or (a(31) and c31) or (b(31) and c31);
 		
 		z <= '0' when s = 0 else '1';
 		n <= s(31);
@@ -117,25 +125,25 @@ end architecture;
 
 ------------ SHIFTER 
 architecture behav of shifter is
-	signal zero : std_logic_vector(31 downto 0) := 0;
+	signal zero : std_logic_vector(31 downto 0) := "0";
 	signal one : std_logic_vector(31 downto 0) := "11111111111111111111111111111111";
 	signal rotated: std_logic_vector(31 downto 0);
 	begin
 		ans <= 
 			a when amount=0 else 
-			a((31-amount) downto 0) & zero(amount-1 downto 0) when opcode = "00" else
-			zero(amount-1 downto 0) & a(31 downto amount) when opcode = "01" else
-			zero(amount-1 downto 0) & a(31 downto amount) when opcode = "10" and a(31)='0' else
-			one(amount-1 downto 0) & a(31 downto amount) when opcode = "10" and a(31)='1' else
+			a((31-to_integer(unsigned(amount))) downto 0) & zero(to_integer(unsigned(amount))-1 downto 0) when opcode = "00" else
+			zero(to_integer(unsigned(amount))-1 downto 0) & a(31 downto to_integer(unsigned(amount))) when opcode = "01" else
+			zero(to_integer(unsigned(amount))-1 downto 0) & a(31 downto to_integer(unsigned(amount))) when opcode = "10" and a(31)='0' else
+			one(to_integer(unsigned(amount))-1 downto 0) & a(31 downto to_integer(unsigned(amount))) when opcode = "10" and a(31)='1' else
 			rotated when opcode = "11";
-		for i in 0 to 31 generate
-			rotated(i) <= a((32+i-amount) mod 32);
+		x: for i in 0 to 31 generate
+			rotated(i) <= a((32+i-to_integer(unsigned(amount))) mod 32);
 		end generate;
 		-----
 		carry <= 
 			'0' when amount=0 else 
-			a(32-amount) when opcode = "00" else
-			a(amount-1) when opcode = "01" or opcode = "10" or opcode="11"; 
+			a(32-to_integer(unsigned(amount))) when opcode = "00" else
+			a(to_integer(unsigned(amount))-1) when opcode = "01" or opcode = "10" or opcode="11"; 
 			---- not confirm for carry in ROR
 end architecture;
 
@@ -148,21 +156,24 @@ end architecture;
 ------------ REGISTER-FILE   
 architecture behav of Register_file is 
 
+    type reg_array_type is array (0 to 15) of std_logic_vector(31 downto 0);
+
 	signal program_counter : std_logic_vector (31 downto 0);
-	signal reg_array: array (0 to 15) of std_logic_vector(31 downto 0);
+	signal reg_array: reg_array_type;
 	begin 
 		program_counter <= reg_array(15);
 		PC_output <= program_counter;
 		out_data_1 <=  reg_array(to_integer(unsigned(read_address_1)));
 		out_data_2 <=  reg_array(to_integer(unsigned(read_address_2)));
 		process(clk)
+		begin
 			if(clk = '1' and clk'event ) then
 				if ( write_enable = '1' ) then 
 					reg_array(to_integer(unsigned(write_address))) <= written_data ; --(I'm relying on your to_integer fn)
 				end if ;
 
 				if (reset = '1' )then 
-					reg_array <= 0 ;
+					reg_array(15) <= "0";reg_array(14) <= "0";reg_array(13) <= "0";reg_array(12) <= "0";reg_array(11) <= "0";reg_array(10) <= "0";reg_array(9) <= "0";reg_array(8) <= "0";reg_array(7) <= "0";reg_array(6) <= "0";reg_array(5) <= "0";reg_array(4) <= "0";reg_array(3) <= "0";reg_array(2) <= "0";reg_array(1) <= "0";reg_array(0) <= "0";
 				end if ;
 			end if ;
 		end process;
@@ -170,9 +181,12 @@ end architecture;
 -----------------
 ------------ MEMORY
 architecture behav of memory is
-	signal memory : array (0 to 2^32-1) of std_logic_vector(31 downto 0);
+
+    type memory_type is array (0 to 2**(32-1)) of std_logic_vector(31 downto 0);
+	signal memory : memory_type;
 	begin
 		process(clk)
+		begin
 			if(clk = '1' and clk'event) then
 				if ( write_enable = '1' ) then 
 					memory(to_integer(unsigned(address))) <= write_data; --(I'm relying on your to_integer fn)
@@ -186,46 +200,46 @@ end architecture;
 -----------
 ------------ PROCESSOR MEMORY PATH
 architecture behav of pm_path is
-	signal amount : integer = 0; 
+	signal amount : integer := 0; 
 	begin
 		to_processor <= -------!!!!!!! correct the dt_type values below !!!!!!
-						from_memory when dt_type = "ldr" else -- ldr ----these dt_type or opcode is of no use below this line because as assumption we have to take care of only word not byte...
+						from_memory when dt_type = "000" else -- ldr ----these dt_type or opcode is of no use below this line because as assumption we have to take care of only word not byte...
 						
-						"0000000000000000" & from_memory(15 downto 0) when dt_type = "ldrh" and byte_offset(1)="0" else -- ldrh
-						from_memory(15 downto 0) & "0000000000000000" when dt_type = "ldrh" and byte_offset(1)="1" else
+						"0000000000000000" & from_memory(15 downto 0) when dt_type = "010" and byte_offset(1)='0' else -- ldrh
+						from_memory(15 downto 0) & "0000000000000000" when dt_type = "010" and byte_offset(1)='1' else
 						
-						"000000000000000000000000" & from_memory(7 downto 0) when dt_type = "ldrb" and byte_offset="00" else --ldrb
-						"0000000000000000" & from_memory(15 downto 8) & "00000000" when dt_type = "ldrb" and byte_offset="01" else
-						"00000000" & from_memory(23 downto 16) & "0000000000000000" when dt_type = "ldrb" and byte_offset="10" else
-						from_memory(31 downto 24) & "000000000000000000000000" when dt_type = "ldrb" and byte_offset="11" else
+						"000000000000000000000000" & from_memory(7 downto 0) when dt_type = "100" and byte_offset="00" else --ldrb
+						"0000000000000000" & from_memory(15 downto 8) & "00000000" when dt_type = "100" and byte_offset="01" else
+						"00000000" & from_memory(23 downto 16) & "0000000000000000" when dt_type = "100" and byte_offset="10" else
+						from_memory(31 downto 24) & "000000000000000000000000" when dt_type = "100" and byte_offset="11" else
 						
-						"0000000000000000" & from_memory(15 downto 0) when dt_type = "ldrsh" and from_memory(15)='0' and byte_offset(1)="0" else -- ldrsh
-						"1111111111111111" & from_memory(15 downto 0) when dt_type = "ldrsh" and from_memory(15)='1' and byte_offset(1)="0" else
-						from_memory(31 downto 16) & "0000000000000000" when dt_type = "ldrsh" and from_memory(31)='0' and byte_offset(1)="1" else
-						from_memory(31 downto 16) & "1111111111111111" when dt_type = "ldrsh" and from_memory(31)='1' and byte_offset(1)="1" else
+						"0000000000000000" & from_memory(15 downto 0) when dt_type = "110" and from_memory(15)='0' and byte_offset(1)='0' else -- ldrsh
+						"1111111111111111" & from_memory(15 downto 0) when dt_type = "110" and from_memory(15)='1' and byte_offset(1)='0' else
+						from_memory(31 downto 16) & "0000000000000000" when dt_type = "110" and from_memory(31)='0' and byte_offset(1)='1' else
+						from_memory(31 downto 16) & "1111111111111111" when dt_type = "110" and from_memory(31)='1' and byte_offset(1)='1' else
 						
-						"000000000000000000000000" & from_memory(7 downto 0) when dt_type = "ldrsb" and from_memory(7) = '0' and byte_offset="00" else --ldrsb
-						"111111111111111111111111" & from_memory(7 downto 0) when dt_type = "ldrsb" and from_memory(7) = '1' and byte_offset="00" else
-						"0000000000000000" & from_memory(15 downto 8) & "00000000" when dt_type = "ldrsb" and from_memory(15) = '0' and byte_offset="01" else
-						"1111111111111111" & from_memory(15 downto 8) & "11111111" when dt_type = "ldrsb" and from_memory(15) = '1' and byte_offset="01" else
-						"00000000" & from_memory(23 downto 16) & "0000000000000000" when dt_type = "ldrsb" and from_memory(23) = '0' and byte_offset="10" else
-						"11111111" & from_memory(23 downto 16) & "1111111111111111" when dt_type = "ldrsb" and from_memory(23) = '1' and byte_offset="10" else
-						from_memory(31 downto 24) & "000000000000000000000000" when dt_type = "ldrsb" and from_memory(31) = '0' and byte_offset="11" else
-						from_memory(31 downto 24) & "111111111111111111111111" when dt_type = "ldrsb" and from_memory(31) = '1' and byte_offset="11";
+						"000000000000000000000000" & from_memory(7 downto 0) when dt_type = "111" and from_memory(7) = '0' and byte_offset="00" else --ldrsb
+						"111111111111111111111111" & from_memory(7 downto 0) when dt_type = "111" and from_memory(7) = '1' and byte_offset="00" else
+						"0000000000000000" & from_memory(15 downto 8) & "00000000" when dt_type = "111" and from_memory(15) = '0' and byte_offset="01" else
+						"1111111111111111" & from_memory(15 downto 8) & "11111111" when dt_type = "111" and from_memory(15) = '1' and byte_offset="01" else
+						"00000000" & from_memory(23 downto 16) & "0000000000000000" when dt_type = "111" and from_memory(23) = '0' and byte_offset="10" else
+						"11111111" & from_memory(23 downto 16) & "1111111111111111" when dt_type = "111" and from_memory(23) = '1' and byte_offset="10" else
+						from_memory(31 downto 24) & "000000000000000000000000" when dt_type = "111" and from_memory(31) = '0' and byte_offset="11" else
+						from_memory(31 downto 24) & "111111111111111111111111" when dt_type = "111" and from_memory(31) = '1' and byte_offset="11";
 		
 		
 		to_memory <= 
-						from_processor when dt_type = "str" else --str
-						from_processor(15 downto 0) & from_processor(15 downto 0) when dt_type = "strh" else -- strh
-						from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) when dt_type = "strb"; --strb
+						from_processor when dt_type = "001" else --str
+						from_processor(15 downto 0) & from_processor(15 downto 0) when dt_type = "011" else -- strh
+						from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) when dt_type = "101"; --strb
 						
-		write_enable <= "1111" when dt_type = "str" else
-						"0011" when dt_type = "strh" and byte_offset(1)="0" else ---strh
-						"1100" when dt_type = "strh" and byte_offset(1)="1" else
-						"0001" when dt_type = "strb" and byte_offset="00" else ---strb
-						"0010" when dt_type = "strb" byte_offset="01" else
-						"0100" when dt_type = "strb" byte_offset="10" else
-						"1000" when dt_type = "strb" byte_offset="11";
+		write_enable <= "1111" when dt_type = "001" else
+						"0011" when dt_type = "011" and byte_offset(1)='0' else ---strh
+						"1100" when dt_type = "011" and byte_offset(1)='1' else
+						"0001" when dt_type = "101" and byte_offset="00" else ---strb
+						"0010" when dt_type = "101" and  byte_offset="01" else
+						"0100" when dt_type = "101" and byte_offset="10" else
+						"1000" when dt_type = "101" and byte_offset="11";
 end architecture;	
 -----------------
 --******* MAIN ARCH. OF DATAPATH ******** --
@@ -267,7 +281,7 @@ end component;
 component shifter
 port(	a:in std_logic_vector(31 downto 0);
 		opcode: in std_logic_vector(1 downto 0);
-		amount:in std_logic_vector(4 downto 0)
+		amount:in std_logic_vector(4 downto 0);
 		ans:out std_logic_vector(31 downto 0);
 		carry: out std_logic);
 end component;
@@ -277,10 +291,10 @@ port ( a,b:in std_logic_vector(31 downto 0);
 		c:out std_logic_vector(31 downto 0));
 end component;
 
-signal register_read_2,register_read_1 : std_logic_vector(3 downto 0);
-signal DR,RES,WD,RD1,RD2,alu_op1,alu_op2,alu_ans,A,B,D,X,EX,S2,PC, mul_input1,mul_input2,mul_output: std_logic_vector(31 downto 0);
+signal register_read_2,register_read_1,register_write : std_logic_vector(3 downto 0);
+signal DR,RES,WD,RD1,RD2,alu_op1,alu_op2,alu_ans,A,B,D,X,EX,S2,PC, mul_input1,mul_input2,mul_output,mul_out: std_logic_vector(31 downto 0);
 signal c_original,c_new,n,z,v,n_original,v_original,z_original : std_logic;
-signal memory_ad,memory_wd,memory_rd, waste_pc : std_logic_vector(31 downto 0);
+signal memory_ad,memory_wd,memory_rd, waste_pc,shift_input,ins : std_logic_vector(31 downto 0);
 signal shift_amount : std_logic_vector(4 downto 0);
 begin
 	u1: alu
@@ -320,16 +334,16 @@ begin
 		write_enable =>  MW,
 		read_enable => MR
 	);
-	u4: pm_path
-	 port map (
-				dt_type => opcode_pm_path,
-				from_processor => for_from_processor,
-				from_memory =>for_from_memory,
-				byte_offset => 0,
-				to_processor => for_to_processor,
-				to_memory => for_to_memory,
-				write_enable => for_write_enable
-				);
+	--u4: pm_path
+	 --port map (
+				--dt_type => opcode_pm_path,
+				--from_processor => for_from_processor,
+				--from_memory =>for_from_memory,
+				--byte_offset => 0,
+				--to_processor => for_to_processor,
+				--to_memory => for_to_memory,
+				--write_enable => for_write_enable
+	--			);
 	u5: shifter
 	port map (
 			a => shift_input,
@@ -367,10 +381,10 @@ begin
 			  D when Asrc2 = "100" ;
 	------------
 	EX <= "00000000000000000000" & ins(11 downto 0);
-	S2 <= "000000" & ins(23 downto 0) & "00" when ins(23)="0" else
-		  "111111" & ins(23 downto 0) & "00";'
+	S2 <= "000000" & ins(23 downto 0) & "00" when ins(23)='0' else
+		  "111111" & ins(23 downto 0) & "00";
 	-------
-	RES <= alu_ans when ReW = "01" ;
+	RES <= alu_ans when ReW = "01" else
 		   mul_output when ReW = "10";
 	S2 <= "00000000" & ins(23 downto 0);
 	EX <= "0000000000000000000000" & ins(11 downto 0);
@@ -392,7 +406,7 @@ begin
 					   ins(11 downto 8) when Rsrc = "10";
 	register_write <= ins(15 downto 12) when RWA = "00" else
 					  ins(19 downto 16) when RWA = "01" else
-					  "1110"; when RWA = "10"; -- for bl instruction
+					  "1110" when RWA = "10"; -- for bl instruction
 	-- flags
 	c_original <= c_new when Fset = '1' ;
 	v_original <= v when Fset = '1' ;
@@ -412,7 +426,7 @@ begin
 	--- multiplier signals
 	mul_input1 <= A;
 	mul_input2 <= B;
-	mul_output <= mul_out when MOW='1';		                     l
+	mul_output <= mul_out when MOW='1';		                     
 
 end architecture;
 -------------------------------
