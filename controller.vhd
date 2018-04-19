@@ -190,7 +190,7 @@ architecture behav of main is
 				case state is
 
 					-- fetch
-					when "0000" =>
+					when "00000" =>
 						--transitions
 						if(class = "00") then
 							state <= "00001"; --rdAB
@@ -205,60 +205,105 @@ architecture behav of main is
 						end if;
 					-------
 					-- rdAB
-					when "0001" =>
+					when "00001" =>
 						--transitions
 						if(ins(27 downto 26)="00") then
-							state<="0010"; --arith
+							state<="00010"; --arith
 						elsif(ins(27 downto 26)="01") then
-							state<="0100"; --addr
+							state<="00100"; --addr
 						elsif(ins(27 downto 26)="10") then
-							state<="1000"; --brn
+							state<="01000"; --brn
 						end if;
 						---arith
-					when "0010" => 
+					when "00010" => 
 							---transitions
 								if(ins(27 downto 26) = "00") then
-									state<= "0011"; --wrRF
+									state<= "00011"; --wrRF
 								end if;
 								
 						---wrRF
-					when "0011" =>
+					when "00011" =>
 							---transitions 
 							if(ins(27 downto 26) = "00") then
-								state <= "0000";
+								state <= "00000";
 							end if;
 						---addr
-					when  "0100" =>
+					when  "00100" =>
 							---transitions
 							if(ins(27 downto 26) = "01" and ins(20) = '0' ) then
-								state <= "0101" ; ---wrM
+								state <= "00101" ; ---wrM
 							elsif (ins(27 downto 26) = "01" and ins(20) = '1' ) then
-								state<= "0111"; ----rdM
+								state<= "00111"; ----rdM
 							end if;
 						----wrM
-					when "0101" =>
+					when "00101" =>
 							----transitions
 								if(ins(27 downto 26) = "01" and ins(20) = '0' ) then
-									state<="0000";
+									state<="00000";
 								end if;
 						----rdM
-					when "0110" => 
+					when "00110" => 
 							-----transitions
 								if(ins(27 downto 26) = "01" and ins(20) = '1' ) then
-									state<="0111";
+									state<="00111";
 								end if;
 						---M2RF	
-					when "0111" =>			
+					when "00111" =>			
 						----transitions
 							if(ins(27 downto 26) = "01" and ins(20) = '1' ) then
-								state<="0000";
+								state<="00000";
 							end if;
 						----brn
-					when "1000" => 
+					when "01000" => 
 						---transitions
-							if(ins(27 downto 26) = "10") then
-								state<="0000";
+							if() then
+								state<="";
 							end if;
+					when "01001" => 
+						---transitions
+							if() then
+								state<="";
+							end if;
+					when "01010" => 
+						---transitions
+							if() then
+								state<="";
+							end if;
+					when "01011" => 
+						---transitions
+							if() then
+								state<="";
+							end if;
+					when "01100" => 
+						---transitions
+							if() then
+								state<="";
+							end if;
+					when "01101" => 
+						---transitions
+							if() then
+								state<="";
+							end if;
+					when "01110" => 
+						---transitions
+							if() then
+								state<="";
+							end if;
+					when "01111" => 
+						---transitions
+							if() then
+								state<="";
+							end if;							
+					when "10000" => 
+						---transitions
+							if() then
+								state<="";
+							end if;
+					when "10001" => 
+						---transitions
+							if() then
+								state<="";
+							end if;							
 					-------
 					---similarly do below for all the states
 					
