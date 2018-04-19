@@ -37,7 +37,8 @@ entity Ins_decoder is
 port ( 
 		ins: in std_logic_vector(32 downto 0);
 		class,variant:out std_logic_vector(1 downto 0);
-		sub_class,pre_increment,write_back,cort:out std_logic);
+		dt_type: out std_logic_vector(2 downto 0);
+		sub_class,pre_increment,write_back,cort:out std_logic );
 end entity;
 ----
 ---- 'Actrl' is not needed as it is embedded in main controller
@@ -338,7 +339,6 @@ end architecture;
 ----architecture
 architecture behav of Ins_decoder is 
 signal class1 : std_logic_vector(1 downto 0); 
-signal complete_sub_class : std_logic_vector(2 downto 0); 
 
 begin
 class1<="00" when  ins(27 downto 26) = "00" and  (ins(25)='1' or (ins(25)= '0' and (ins(4)='0' or (ins(7)='0' and ins(4)='1')))) else
@@ -354,12 +354,14 @@ write_back <= ins(21);
 
 sub_class <= ins(20);
 
-complete_sub_class <=   "000" when ins(27 downto 26)="01" and ins(20)='1' and ins(22)='0' else
-						"001" when ins(27 downto 26)="01" and ins(20)='0' and ins(22)='0' else
-						"100" when ins(27 downto 26)="01" and ins(20)='1' and ins(22)='1' else
-						"101" when ins(27 downto 26)="01" and ins(20)='0' and ins(22)='1' else
-						"010" when ins(27 downto 26)="00" and ins(20)='1' and class1="01" else
-						"011" when ins(27 downto 26)="00" and ins(20)='0' and class1="01";
+dt_type <=  "000" when ins(27 downto 26)="01" and ins(20)='1' and ins(22)='0' else
+			"001" when ins(27 downto 26)="01" and ins(20)='0' and ins(22)='0' else
+			"100" when ins(27 downto 26)="01" and ins(20)='1' and ins(22)='1' else
+			"101" when ins(27 downto 26)="01" and ins(20)='0' and ins(22)='1' else
+			"010" when ins(27 downto 26)="00" and ins(20)='1' and class1="01" and ins(6 downto 5)="01" else
+			"011" when ins(27 downto 26)="00" and ins(20)='0' and class1="01" else
+			"110" when ins(27 downto 26)="00" and ins(20)='1' and class1="01" and ins(6 downto 5)="11" else
+			"111" when ins(27 downto 26)="00" and ins(20)='1' and class1="01" and ins(6 downto 5)="10";
 
 variant <=  "00" when ins(27 downto 26) = "00" and (ins(25)='1' or (class1="01" and ins(22)='1')) else
 			"00" when ins(27 downto 25) = "010" else

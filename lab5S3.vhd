@@ -6,7 +6,7 @@ port (
 		clk : in std_logic;
 		PW,MR,MW,IW,DW,Rsrc1,RW,AW,BW,XW,Fset, reset_rf, MOW : in std_logic ;
 		Ssrc1,iord,Asrc1,ReW,M2R,Rsrc,RWA : in std_logic_vector(1 downto 0);
-		Asrc2 : in std_logic_vector(2 downto 0);
+		Asrc2,dt_type : in std_logic_vector(2 downto 0);
 		op : in std_logic_vector(3 downto 0)
 		);
 end entity;
@@ -69,9 +69,9 @@ use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all; -- for to_integer
 entity memory is 
 port( 
-	  address : in std_logic_vector(17 downto 0);
-	  write_data : in std_logic_vector(31 downto 0);
+	  address,write_data : in std_logic_vector(31 downto 0);
 	  clk,write_enable,read_enable: in std_logic;
+	  write_enable_for_byte: in std_logic_vector(3 downto 0);
 	  read_data : out std_logic_vector(31 downto 0)); 
 end entity;
 -----
@@ -182,15 +182,29 @@ end architecture;
 ------------ MEMORY
 architecture behav of memory is
 
-    type memory_type is array (0 to 2**(32-1)) of std_logic_vector(31 downto 0);
+    type memory_type is array (0 to 2**32 -1) of std_logic_vector(31 downto 0);
 	signal memory : memory_type;
 	begin
 		process(clk)
 		begin
 			if(clk = '1' and clk'event) then
 				if ( write_enable = '1' ) then 
-					memory(to_integer(unsigned(address))) <= write_data; --(I'm relying on your to_integer fn)
-
+					if(write_enable_for_byte="0001") then
+						memory(to_integer(unsigned(address)))(7 downto 0) <= write_data(7 downto 0); --(I'm relying on your to_integer fn)
+					elsif(write_enable_for_byte="0010") then
+						memory(to_integer(unsigned(address)))(15 downto 8) <= write_data(15 downto 8);
+					elsif(write_enable_for_byte="0100") then
+						memory(to_integer(unsigned(address)))(23 downto 16) <= write_data(23 downto 16);
+					elsif(write_enable_for_byte="1000") then
+						memory(to_integer(unsigned(address)))(31 downto 24) <= write_data(31 downto 24);
+					elsif(write_enable_for_byte="0011") then
+						memory(to_integer(unsigned(address)))(15 downto 0) <= write_data(15 downto 0);
+					elsif(write_enable_for_byte="1100") then
+						memory(to_integer(unsigned(address)))(31 downto 16) <= write_data(31 downto 16);
+					elsif(write_enable_for_byte="1111") then
+						memory(to_integer(unsigned(address))) <= write_data;
+					end if;
+						
 				elsif (read_enable = '1') then 
 					read_data <= memory(to_integer(unsigned(address)));
 				end if ;
@@ -202,8 +216,8 @@ end architecture;
 architecture behav of pm_path is
 	signal amount : integer := 0; 
 	begin
-		to_processor <= -------!!!!!!! correct the dt_type values below !!!!!!
-						from_memory when dt_type = "000" else -- ldr ----these dt_type or opcode is of no use below this line because as assumption we have to take care of only word not byte...
+		to_processor <= 
+						from_memory when dt_type = "000" else -- ldr
 						
 						"0000000000000000" & from_memory(15 downto 0) when dt_type = "010" and byte_offset(1)='0' else -- ldrh
 						from_memory(15 downto 0) & "0000000000000000" when dt_type = "010" and byte_offset(1)='1' else
@@ -230,10 +244,15 @@ architecture behav of pm_path is
 		
 		to_memory <= 
 						from_processor when dt_type = "001" else --str
-						from_processor(15 downto 0) & from_processor(15 downto 0) when dt_type = "011" else -- strh
-						from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) when dt_type = "101"; --strb
+						from_processor(15 downto 0) & from_processor(15 downto 0) when dt_type = "011" and byte_offset(1)='0' else -- strh
+						from_processor(31 downto 16) & from_processor(31 downto 16) when dt_type = "011" and byte_offset(1)='1' else -- strh
 						
-		write_enable <= "1111" when dt_type = "001" else
+						from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) when dt_type = "101" and byte_offset="00"; --strb
+						from_processor(15 downto 8) & from_processor(15 downto 8) & from_processor(15 downto 8) & from_processor(15 downto 8) when dt_type = "101" and byte_offset="01"; --strb
+						from_processor(23 downto 16) & from_processor(23 downto 16) & from_processor(23 downto 16) & from_processor(23 downto 16) when dt_type = "101" and byte_offset="10"; --strb
+						from_processor(31 downto 24) & from_processor(31 downto 24) & from_processor(31 downto 24) & from_processor(31 downto 24) when dt_type = "101" and byte_offset="11"; --strb
+						
+		write_enable <= "1111" when dt_type = "001" else --str
 						"0011" when dt_type = "011" and byte_offset(1)='0' else ---strh
 						"1100" when dt_type = "011" and byte_offset(1)='1' else
 						"0001" when dt_type = "101" and byte_offset="00" else ---strb
@@ -262,16 +281,17 @@ port( written_data : in std_logic_vector(31 downto 0);
 end component;
 
 component memory
-port( address:in std_logic_vector(3 downto 0);
-	  write_data : in std_logic_vector(31 downto 0);
+port( 
+	  address,write_data : in std_logic_vector(31 downto 0);
 	  clk,write_enable,read_enable: in std_logic;
+	  write_enable_for_byte: in std_logic_vector(3 downto 0);
 	  read_data : out std_logic_vector(31 downto 0));
 end component;
 
 component pm_path 
 port ( from_processor : in std_logic_vector(31 downto 0);
 	   from_memory : in std_logic_vector(31 downto 0);
-	   dt_type : in std_logic_vector( 5 downto 0 );  -- as given in slides opc is 6 bit;
+	   dt_type : in std_logic_vector( 2 downto 0 ); 
 	   byte_offset: in  std_logic_vector( 1 downto 0 );
 	   to_processor : out std_logic_vector(31 downto 0);
 	   to_memory : out std_logic_vector(31 downto 0);
@@ -291,10 +311,10 @@ port ( a,b:in std_logic_vector(31 downto 0);
 		c:out std_logic_vector(31 downto 0));
 end component;
 
-signal register_read_2,register_read_1,register_write : std_logic_vector(3 downto 0);
+signal register_read_2,register_read_1,register_write,write_enable : std_logic_vector(3 downto 0);
 signal DR,RES,WD,RD1,RD2,alu_op1,alu_op2,alu_ans,A,B,D,X,EX,S2,PC, mul_input1,mul_input2,mul_output,mul_out: std_logic_vector(31 downto 0);
 signal c_original,c_new,n,z,v,n_original,v_original,z_original : std_logic;
-signal memory_ad,memory_wd,memory_rd, waste_pc,shift_input,ins : std_logic_vector(31 downto 0);
+signal memory_ad,memory_wd,memory_rd, waste_pc,shift_input,ins,from_memory,from_processor,to_processor,to_memory : std_logic_vector(31 downto 0);
 signal shift_amount : std_logic_vector(4 downto 0);
 begin
 	u1: alu
@@ -328,22 +348,25 @@ begin
 	port map 
 	(	
 		address => memory_ad,
-		write_data => memory_wd,
-		read_data=> memory_rd,
+		--write_data => memory_wd,
+		write_data => to_memory,
+		--read_data=> memory_rd,
+		read_data=> from_memory,
 		clk => clk,
 		write_enable =>  MW,
+		write_enable_for_byte => write_enable,
 		read_enable => MR
 	);
-	--u4: pm_path
-	 --port map (
-				--dt_type => opcode_pm_path,
-				--from_processor => for_from_processor,
-				--from_memory =>for_from_memory,
-				--byte_offset => 0,
-				--to_processor => for_to_processor,
-				--to_memory => for_to_memory,
-				--write_enable => for_write_enable
-	--			);
+	u4: pm_path
+	port map (
+				dt_type => dt_type,
+				from_processor => memory_wd,
+				from_memory => from_memory,
+				byte_offset => memory_ad(1 downto 0),
+				to_processor => memory_rd,
+				to_memory => to_memory,
+				write_enable => write_enable
+				);
 	u5: shifter
 	port map (
 			a => shift_input,
@@ -368,7 +391,6 @@ begin
 	ins <= memory_rd when IW = '1' ;
 	DR <= memory_rd when DW = '1';
 	---
-	
 	---- alu operands
 	alu_op1 <= pc when Asrc1 = "00" else
 			   A when Asrc1 = "01" else
