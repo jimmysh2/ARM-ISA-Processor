@@ -7,7 +7,9 @@ port (
 		PW,MR,MW,IW,DW,Rsrc1,RW,AW,BW,XW,Fset, reset_rf, MOW : in std_logic ;
 		Ssrc1,iord,Asrc1,ReW,M2R,Rsrc,RWA : in std_logic_vector(1 downto 0);
 		Asrc2,dt_type : in std_logic_vector(2 downto 0);
-		op : in std_logic_vector(3 downto 0)
+		op : in std_logic_vector(3 downto 0);
+		c_original,v_original,n_original,z_original : out std_logic;
+		ins_out : out std_logic_vector(31 downto 0)
 		);
 end entity;
 ---------------
@@ -247,9 +249,9 @@ architecture behav of pm_path is
 						from_processor(15 downto 0) & from_processor(15 downto 0) when dt_type = "011" and byte_offset(1)='0' else -- strh
 						from_processor(31 downto 16) & from_processor(31 downto 16) when dt_type = "011" and byte_offset(1)='1' else -- strh
 						
-						from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) when dt_type = "101" and byte_offset="00"; --strb
-						from_processor(15 downto 8) & from_processor(15 downto 8) & from_processor(15 downto 8) & from_processor(15 downto 8) when dt_type = "101" and byte_offset="01"; --strb
-						from_processor(23 downto 16) & from_processor(23 downto 16) & from_processor(23 downto 16) & from_processor(23 downto 16) when dt_type = "101" and byte_offset="10"; --strb
+						from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) & from_processor(7 downto 0) when dt_type = "101" and byte_offset="00" else --strb
+						from_processor(15 downto 8) & from_processor(15 downto 8) & from_processor(15 downto 8) & from_processor(15 downto 8) when dt_type = "101" and byte_offset="01" else --strb
+						from_processor(23 downto 16) & from_processor(23 downto 16) & from_processor(23 downto 16) & from_processor(23 downto 16) when dt_type = "101" and byte_offset="10" else --strb
 						from_processor(31 downto 24) & from_processor(31 downto 24) & from_processor(31 downto 24) & from_processor(31 downto 24) when dt_type = "101" and byte_offset="11"; --strb
 						
 		write_enable <= "1111" when dt_type = "001" else --str
@@ -313,8 +315,9 @@ end component;
 
 signal register_read_2,register_read_1,register_write,write_enable : std_logic_vector(3 downto 0);
 signal DR,RES,WD,RD1,RD2,alu_op1,alu_op2,alu_ans,A,B,D,X,EX,S2,PC, mul_input1,mul_input2,mul_output,mul_out: std_logic_vector(31 downto 0);
-signal c_original,c_new,n,z,v,n_original,v_original,z_original : std_logic;
-signal memory_ad,memory_wd,memory_rd, waste_pc,shift_input,ins,from_memory,from_processor,to_processor,to_memory : std_logic_vector(31 downto 0);
+--signal c_original,n_original,v_original,z_original : std_logic;
+signal c_new,n,z,v,c_internal : std_logic;
+signal ins,memory_ad,memory_wd,memory_rd, waste_pc,shift_input,from_memory,from_processor,to_processor,to_memory : std_logic_vector(31 downto 0);
 signal shift_amount : std_logic_vector(4 downto 0);
 begin
 	u1: alu
@@ -323,7 +326,7 @@ begin
 		a => alu_op1 ,
 		b => alu_op2 ,
 		opcode => op ,
-		carry => c_original , -- i don't know what to write in carry
+		carry => c_internal , -- i don't know what to write in carry
 		ans => alu_ans ,
 		c => c_new,
 		n => n,
@@ -389,6 +392,7 @@ begin
 				  A ; -- this is for post increment
 	memory_wd <= B;
 	ins <= memory_rd when IW = '1' ;
+	ins_out <= ins;
 	DR <= memory_rd when DW = '1';
 	---
 	---- alu operands
@@ -430,7 +434,8 @@ begin
 					  ins(19 downto 16) when RWA = "01" else
 					  "1110" when RWA = "10"; -- for bl instruction
 	-- flags
-	c_original <= c_new when Fset = '1' ;
+	c_original <= c_internal;
+	c_internal <= c_new when Fset = '1' ;
 	v_original <= v when Fset = '1' ;
 	z_original <= z when Fset = '1' ;
 	n_original <= n when Fset = '1' ;

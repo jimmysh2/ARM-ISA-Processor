@@ -3,10 +3,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 entity controller is 
 port (	
-		clk : in std_logic; ins : in std_logic_vector(31 downto 0);
-		PW,iord,MR,MW,IW,DW,Rsrc,M2R,RW,AW,BW,Asrc1,Fset,Rew, reset_rf : out std_logic ;
-		Asrc2 : out std_logic_vector(1 downto 0);
-		op : out std_logic_vector(3 downto 0));
+		clk,c,v,n,z : in std_logic; ins : in std_logic_vector(31 downto 0);
+		PW,MR,MW,IW,DW,Rsrc1,RW,AW,BW,XW,Fset, reset_rf, MOW : out std_logic ;
+        Asrc1,Asrc2,iord,ReW,M2R,RWA,Rsrc,Ssrc1 : out std_logic_vector(1 downto 0);
+        op : out std_logic_vector(3 downto 0));
 end entity;
 ----
 ---- Main controller
@@ -14,7 +14,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 entity main is 
 port (	
-		clk,p,sub_class,pre_increment,write_back,cort : in std_logic; ins : in std_logic_vector(31 downto 0); 
+		clk,sub_class,pre_increment,write_back,cort : in std_logic; ins : in std_logic_vector(31 downto 0); 
 		variant,class : in std_logic_vector(1 downto 0);
 		PW,MR,MW,IW,DW,Rsrc1,RW,AW,BW,XW,Fset, reset_rf, MOW : out std_logic ;
 		Asrc1,Asrc2,iord,ReW,M2R,RWA,Rsrc,Ssrc1 : out std_logic_vector(1 downto 0);
@@ -53,6 +53,110 @@ end entity;
 
 ---------------
 -- ************ START OF ARCHITECTURE **********
+architecture behav of controller is
+
+component main
+port (	
+		clk,sub_class,pre_increment,write_back,cort : in std_logic; ins : in std_logic_vector(31 downto 0); 
+		variant,class : in std_logic_vector(1 downto 0);
+		PW,MR,MW,IW,DW,Rsrc1,RW,AW,BW,XW,Fset, reset_rf, MOW : out std_logic ;
+		Asrc1,Asrc2,iord,ReW,M2R,RWA,Rsrc,Ssrc1 : out std_logic_vector(1 downto 0);
+		op : out std_logic_vector(3 downto 0));
+end component;
+
+component Bctrl
+port (	
+		clk,c,v,n,z : in std_logic; ins : in std_logic_vector(3 downto 0);
+		p : out std_logic );
+end component;
+
+component Ins_decoder
+port ( 
+		ins: in std_logic_vector(32 downto 0);
+		class,variant:out std_logic_vector(1 downto 0);
+		dt_type: out std_logic_vector(2 downto 0);
+		sub_class,pre_increment,write_back,cort:out std_logic );
+end component;
+signal p,sub_class,pre_increment,write_back,cort : std_logic;
+signal variant,class :  std_logic_vector(1 downto 0);
+signal PW1,MR1,MW1,IW1,DW1,Rsrc1_1,RW1,AW1,BW1,XW1,Fset1, reset_rf1, MOW1 : std_logic ;
+signal 	Asrc11,Asrc21,iord1,ReW1,M2R1,RWA1,Rsrc_1,Ssrc11 :  std_logic_vector(1 downto 0);
+signal op1:std_logic_vector(3 downto 0);
+signal dt_type : std_logic_vector(2 downto 0);
+--signal ins :  std_logic_vector(31 downto 0); 
+begin
+    
+    u1: main
+	port map 
+	(
+		clk => clk,
+		sub_class => sub_class,
+		pre_increment=> pre_increment,
+        write_back => write_back,
+        cort => cort,
+        ins => ins,
+     	variant => variant,
+     	class => class,
+     	PW => PW1,
+     	MR => MR1,
+     	MW => MW1,
+     	IW => IW1,DW => DW1,
+     	Rsrc1 => Rsrc1_1,
+     	RW => RW1,
+     	AW => AW1,
+     	BW => BW1,
+     	XW => XW1,     	
+     	Fset => Fset1,
+     	reset_rf => reset_rf1,
+     	MOW => MOW1,
+     	Asrc1 => Asrc11,
+     	Asrc2 => Asrc21,
+     	iord => iord1,
+     	ReW => ReW1,
+     	M2R => M2R1,
+     	RWA => RWA1,
+     	Rsrc => Rsrc_1,
+     	Ssrc1 => Ssrc11,
+     	op  => op1 
+		);
+	
+	u2 : Bctrl
+	port map
+	(  
+	   clk => clk,
+	   c => c,
+	   v => v,
+	   n=> n,
+        z=> z,
+        p => p,
+        ins => ins
+        	   
+	);
+	u3: Ins_decoder
+	port map 
+	(
+	   ins => ins,
+	   class => class,
+	   variant => variant,
+	   dt_type => dt_type,
+	   sub_class => sub_class,
+	   pre_increment => pre_increment,
+	   write_back => write_back,
+	   cort => cort
+	);
+	-----------
+	PW<= p and PW1;
+	IW<= p and IW1;
+	DW<= p and DW1;
+	RW<= p and RW1;
+	AW<= p and AW1;
+	BW<= p and BW1;
+	ReW  <= ReW1 when p ='1' else "00";
+	PW<= p and PW1;
+	
+    
+end architecture;
+------------
 architecture behav of main is
 	signal state : std_logic_vector(3 downto 0);
 	begin
@@ -153,7 +257,7 @@ architecture behav of main is
 					"00" when state="01111" and ins(21)='1';
 					
 		Fset <=
-								'1' when state = "00100" and ins(20)='1' and p ='1' else
+								'1' when state = "00100" and ins(20)='1' else
 								'0';
 		Ssrc1 <=
 								"00" when state="00011" and variant = "00" else
@@ -312,9 +416,6 @@ architecture behav of Bctrl is
 					(n xor v) and not z when "1100",
 					not ((n xor v) and not z ) when "1101",
 					'1' when others;
-					
-				
-					-- and so on from slide 11-12 of lec 12
 		
 end architecture;
 ----architecture
@@ -354,3 +455,4 @@ cort <= '1' when ins(24 downto 21) >="1000" and ins(24 downto 21) <="1011" else
         '0';
 						
 end architecture;
+
